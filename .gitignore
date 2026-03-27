@@ -8,6 +8,7 @@ out/
 # build
 dist/
 build/
+*.tsbuildinfo
 
 # env files
 .env
@@ -26,6 +27,3 @@ yarn-error.log*
 *.swo
 .DS_Store
 Thumbs.db
-
-# private / not part of the open source project
-linear-engine/

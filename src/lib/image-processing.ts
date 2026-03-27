@@ -15,22 +15,6 @@ export function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-export function loadImageFromFile(file: File): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(img);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Failed to load image"));
-    };
-    img.src = url;
-  });
-}
-
 /**
  * Scale image to fit within maxDimension while preserving aspect ratio,
  * then sample at every `scale` pixels to create the dot grid.

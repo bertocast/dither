@@ -11,7 +11,6 @@ import {
   invertWithMask,
 } from "@/lib/dither-algorithms";
 import { processImage, loadImage } from "@/lib/image-processing";
-import { LINEAR_POSITIONS } from "@/lib/linear-positions";
 import {
   createDotSystem,
   updateDots,
@@ -24,13 +23,20 @@ import { useIsMobile } from "@/lib/use-is-mobile";
 interface ParticleCanvasProps {
   imageSrc: string;
   onUploadRequest: () => void;
+  onLogoPresetChange: (src: string) => void;
 }
 
 const GRID_SIZE = 205;
 
+const LOGO_PRESETS = {
+  linear: "/linear-app-icon.png",
+  cube: "/CUBE_2D_LIGHT.png",
+} as const;
+
 export default function ParticleCanvas({
   imageSrc,
   onUploadRequest,
+  onLogoPresetChange,
 }: ParticleCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const systemRef = useRef<DotSystem | null>(null);
@@ -49,16 +55,22 @@ export default function ParticleCanvas({
       options: ["floyd-steinberg", "bayer", "blue-noise"],
       default: "floyd-steinberg",
     },
-    scale: [0.5, 0.1, 2.0, 0.05],
+    scale: [0.35, 0.1, 2.0, 0.05],
     dotScale: [1, 0.5, 10, 0.5],
-    invert: false,
-    linearDemo: false,
+    invert: true,
+
+    logo: {
+      type: "select",
+      options: ["linear", "cube"],
+      default: "linear",
+    },
 
     image: {
+      _collapsed: true,
       threshold: [181, 0, 255, 1],
       contrast: [0, -100, 100, 1],
       gamma: [1.03, 0.1, 3.0, 0.01],
-      blur: [8, 0, 20, 0.25],
+      blur: [3.75, 0, 20, 0.25],
       highlightsCompression: [0, 0, 1, 0.01],
     },
 
@@ -81,6 +93,12 @@ export default function ParticleCanvas({
   });
 
   const algorithm = params.algorithm as DitherAlgorithm;
+
+  useEffect(() => {
+    const key = params.logo as keyof typeof LOGO_PRESETS;
+    const path = LOGO_PRESETS[key] ?? LOGO_PRESETS.linear;
+    onLogoPresetChange(path);
+  }, [params.logo, onLogoPresetChange]);
 
   const startLoop = useCallback(() => {
     if (runningRef.current) return;
@@ -130,54 +148,42 @@ export default function ParticleCanvas({
       let gw = GRID_SIZE;
       let gh = GRID_SIZE;
 
-      if (params.linearDemo) {
-        const flat: number[] = [];
-        for (const [x, y] of LINEAR_POSITIONS) {
-          flat.push(x, y);
+      const img = await loadImage(src);
+
+      const processed = processImage(
+        img,
+        GRID_SIZE,
+        1,
+        params.image.contrast,
+        params.image.gamma,
+        params.image.blur,
+        params.image.highlightsCompression
+      );
+
+      gw = processed.width;
+      gh = processed.height;
+      const opts = {
+        threshold: params.image.threshold,
+        serpentine: params.dither.serpentine,
+        errorStrength: params.dither.errorStrength,
+      };
+
+      switch (algorithm) {
+        case "floyd-steinberg":
+          positions = floydSteinberg(processed.grayscale, processed.width, processed.height, opts, processed.alpha);
+          break;
+        case "bayer":
+          positions = bayerDither(processed.grayscale, processed.width, processed.height, opts, processed.alpha);
+          break;
+        case "blue-noise": {
+          if (!blueNoiseRef.current) blueNoiseRef.current = generateBlueNoise(256);
+          positions = blueNoiseDither(processed.grayscale, processed.width, processed.height, blueNoiseRef.current, 256, opts, processed.alpha);
+          break;
         }
-        positions = new Float32Array(flat);
+      }
 
-        if (params.invert) {
-          positions = invertWithMask(positions, gw, gh, params.shape.cornerRadius);
-        }
-      } else {
-        const img = await loadImage(src);
-
-        const processed = processImage(
-          img,
-          GRID_SIZE,
-          1,
-          params.image.contrast,
-          params.image.gamma,
-          params.image.blur,
-          params.image.highlightsCompression
-        );
-
-        gw = processed.width;
-        gh = processed.height;
-        const opts = {
-          threshold: params.image.threshold,
-          serpentine: params.dither.serpentine,
-          errorStrength: params.dither.errorStrength,
-        };
-
-        switch (algorithm) {
-          case "floyd-steinberg":
-            positions = floydSteinberg(processed.grayscale, processed.width, processed.height, opts, processed.alpha);
-            break;
-          case "bayer":
-            positions = bayerDither(processed.grayscale, processed.width, processed.height, opts, processed.alpha);
-            break;
-          case "blue-noise": {
-            if (!blueNoiseRef.current) blueNoiseRef.current = generateBlueNoise(256);
-            positions = blueNoiseDither(processed.grayscale, processed.width, processed.height, blueNoiseRef.current, 256, opts, processed.alpha);
-            break;
-          }
-        }
-
-        if (params.invert) {
-          positions = invertWithMask(positions, processed.width, processed.height, params.shape.cornerRadius, processed.alpha);
-        }
+      if (params.invert) {
+        positions = invertWithMask(positions, processed.width, processed.height, params.shape.cornerRadius, processed.alpha);
       }
 
       gridDimsRef.current = { w: gw, h: gh };
@@ -191,15 +197,15 @@ export default function ParticleCanvas({
       systemRef.current = createDotSystem(positions, s, dotScale, ox, oy);
       startLoop();
     },
-    [algorithm, params.scale, params.dotScale, params.image.contrast, params.image.gamma, params.image.blur, params.image.threshold, params.image.highlightsCompression, params.dither.errorStrength, params.dither.serpentine, params.shape.cornerRadius, params.invert, params.linearDemo, isMobile, startLoop]
+    [algorithm, params.scale, params.dotScale, params.image.contrast, params.image.gamma, params.image.blur, params.image.threshold, params.image.highlightsCompression, params.dither.errorStrength, params.dither.serpentine, params.shape.cornerRadius, params.invert, isMobile, startLoop]
   );
 
   useEffect(() => {
-    const configKey = JSON.stringify([imageSrc, algorithm, params.scale, params.dotScale, params.image, params.dither, params.shape, params.invert, params.linearDemo, isMobile]);
+    const configKey = JSON.stringify([imageSrc, algorithm, params.scale, params.dotScale, params.image, params.dither, params.shape, params.invert, isMobile]);
     if (configKey === prevConfigRef.current) return;
     prevConfigRef.current = configKey;
     rebuildParticles(imageSrc);
-  }, [imageSrc, algorithm, rebuildParticles, params.scale, params.dotScale, params.image, params.dither, params.shape, params.invert, params.linearDemo, isMobile]);
+  }, [imageSrc, algorithm, rebuildParticles, params.scale, params.dotScale, params.image, params.dither, params.shape, params.invert, isMobile]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

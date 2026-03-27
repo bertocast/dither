@@ -6,6 +6,7 @@ import ParticleCanvas from "@/components/particle-canvas";
 export default function Home() {
   const [imageSrc, setImageSrc] = useState("/linear-app-icon.png");
   const inputRef = useRef<HTMLInputElement>(null);
+  const blobUrlRef = useRef<string | null>(null);
 
   const handleUpload = useCallback(() => {
     inputRef.current?.click();
@@ -14,13 +15,20 @@ export default function Home() {
   const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file && file.type.startsWith("image/")) {
-      setImageSrc(URL.createObjectURL(file));
+      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+      const url = URL.createObjectURL(file);
+      blobUrlRef.current = url;
+      setImageSrc(url);
     }
   }, []);
 
   return (
     <div className="fixed inset-0 overflow-hidden">
-      <ParticleCanvas imageSrc={imageSrc} onUploadRequest={handleUpload} />
+      <ParticleCanvas
+        imageSrc={imageSrc}
+        onUploadRequest={handleUpload}
+        onLogoPresetChange={setImageSrc}
+      />
       <input
         ref={inputRef}
         type="file"
