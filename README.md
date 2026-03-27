@@ -23,6 +23,10 @@ Bug reports and ideas are welcome -- open an issue.
 
 Pull requests are not being reviewed at this time.
 
+## Credits
+
+Inspired by the dithered particle effect [Emil Kowalski](https://x.com/emilkowalski_) built for [linear.app/next](https://linear.app/next). See his [original tweet](https://x.com/emilkowalski/status/2036778116748542220).
+
 ## License
 
 [MIT](LICENSE)
