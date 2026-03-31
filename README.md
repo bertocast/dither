@@ -11,7 +11,7 @@ npm install
 npm run dev
 ```
 
-Opens at [localhost:3000](http://localhost:3000).
+Opens at [localhost:3487](http://localhost:3487).
 
 ## Stack
 
